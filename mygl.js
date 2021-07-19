@@ -8,6 +8,12 @@ import {arr_diff}         from "./util/utilities.js";
 
 let cubeRotation = 0.0;
 
+let globalState = {
+    indexBuffer: undefined,
+    vertexBuffer: undefined,
+};
+
+
 import {Shader} from "./lib/Shader.js";
 
 import {CubeGeometry} from "./lib/Geometry.js";
@@ -42,6 +48,8 @@ function main() {
     let myObjArr = [];
 
     let myGeom = new CubeGeometry("aPosition", "aTextureCoord", "aNormal");
+
+    myGeom.interleaveAttributes();
 
     for (let i = 0; i < 1000; i++) {
 
@@ -102,7 +110,7 @@ function draw(gl, shader, objectArr, deltaTime) {
 
     const viewMatrix = mat4.create();
 
-    mat4.translate(viewMatrix, viewMatrix, [0.0, 0.0, -20.]);
+    mat4.translate(viewMatrix, viewMatrix, [0.0, 0.0, -10]);
 
     mat4.rotate(viewMatrix, viewMatrix,
                 cubeRotation * 0.5,
@@ -159,7 +167,11 @@ function draw(gl, shader, objectArr, deltaTime) {
             //if is a index buffer
             if (object.geom.attributes[key].index === true) {
 
-                gl.bindBuffer(ELEMENT_ARRAY_BUFFER, object.geom.buffers[key]);
+                if(! (globalState.indexBuffer === object.geom.buffers[key])){
+                    console.log('switching index buffer');
+                    gl.bindBuffer(ELEMENT_ARRAY_BUFFER, object.geom.buffers[key]);
+                    globalState.indexBuffer = object.geom.buffers[key];
+                }
 
             }
 
@@ -202,6 +214,7 @@ function draw(gl, shader, objectArr, deltaTime) {
             if (!obj_uni.hasOwnProperty(key)) continue;
 
             if (!shader_uni[key]) {
+                console.log(shader);
                 console.warn(`shader does not have uniform ${key}, will not apply`);
                 continue;
             }
@@ -267,4 +280,3 @@ function draw(gl, shader, objectArr, deltaTime) {
     cubeRotation += deltaTime;
 
 }
-
