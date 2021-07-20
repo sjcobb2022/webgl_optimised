@@ -24,28 +24,22 @@
   uniform mat4 uNormalMatrix;
 
   varying vec2 vTextureCoord;
-  varying highp vec3 vLighting;
-  varying vec3 FragPos;
-
-
+  varying vec3 vNormal; // same as v_normal
+  varying vec3 vSurfaceToLight;
 
   void main() {
 
     gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * aPosition;
     vTextureCoord = aTextureCoord;
 
-    FragPos = vec3(aPosition * uModelMatrix);
+    vec3 lightWorldPosition = vec3(1.0, 1.0, 1.0);
 
-//    highp vec3 directionalLightColor = vec3(1, 1, 1);
-    highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
-    highp vec4 transformedNormal = uNormalMatrix * vec4(aNormal, 1.0);
-//    float distance = length(light.position - FragPos);
+    vec3 surfaceWorldPosition = (uModelMatrix * aPosition).xyz;
 
-//    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
+    vSurfaceToLight = lightWorldPosition - surfaceWorldPosition;
 
-    highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+    vNormal = vec3(uNormalMatrix * vec4(aNormal, 1.0));
 
-    vLighting = vec3(1.0, 1.0, 1.0);
 
   }
 </script>
@@ -53,34 +47,20 @@
 <script type="x-shader/x-fragment" id="fragShader">
   precision highp float;
   uniform lowp vec4 uColor;
-  varying vec3 vLighting;
-  varying vec3 FragPos;
 
-  struct Light {
-    vec3 position;
-    vec3 ambient;
-
-    float constant;
-    float linear;
-    float quadratic;
-  };
+  varying vec3 vNormal;
+  varying vec3 vSurfaceToLight;
 
   void main() {
 
-    Light light;
+    vec3 normal = normalize(vNormal);
+    vec3 surfaceToLightDir = normalize(vSurfaceToLight);
 
-    light.ambient = vec3(1.0, 1.0, 1.0);
-    light.constant = 1.0;
-    light.linear = 0.09;
-    light.quadratic = 0.032;
-    light.position = vec3(0.0, 0.0, 0.0);
+    float light = dot(normal, surfaceToLightDir);
 
-    float distance    = length(light.position - FragPos);
+    gl_FragColor = uColor;
 
-    float attenuation = 1.0 / (light.constant + light.linear * distance +
-    light.quadratic * (distance * distance));
-
-    gl_FragColor = uColor * vec4(vLighting * attenuation, 1.0);
+    gl_FragColor *= light;
 
   }
 
