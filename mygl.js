@@ -278,5 +278,4 @@ function draw(gl, shader, objectArr, camera) {
 
         }
     }
-
 }
