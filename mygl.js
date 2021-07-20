@@ -1,20 +1,7 @@
-import {
-    ARRAY_BUFFER,
-    ELEMENT_ARRAY_BUFFER,
-    TRIANGLES,
-}                         from "./util/constants.mjs";
-import {mat4, quat, vec3} from "./matrix/gl-matrix.js";
-import {arr_diff}         from "./util/utilities.js";
-
-let cubeRotation = 0.0;
-
-let globalState = {
-    indexBuffer: undefined,
-    vertexBuffer: undefined,
-};
-
-
-import {Shader} from "./lib/Shader.js";
+import {ARRAY_BUFFER, ELEMENT_ARRAY_BUFFER, TRIANGLES,} from "./util/constants.mjs";
+import {mat4}                                           from "./matrix/gl-matrix.js";
+import {arr_diff}                                       from "./util/utilities.js";
+import {Shader}                                         from "./lib/Shader.js";
 
 import {CubeGeometry} from "./lib/Geometry.js";
 
@@ -22,7 +9,40 @@ import {Mesh} from "./lib/Mesh.js";
 
 import Stats from "./stats/stats.module.js";
 
+let cubeRotation = 0.0;
+
+let globalState = {
+    indexBuffer : undefined,
+    vertexBuffer: undefined,
+    program     : undefined,
+};
+
+
 main();
+
+
+function createCamera(){
+    const fieldOfView = 45 * Math.PI / 180;   // in radians
+    const aspect      = gl.canvas.clientWidth / gl.canvas.clientHeight;
+    const zNear       = 0.1;
+    const zFar        = 1000.0;
+
+    const projectionMatrix = mat4.create();
+
+    mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
+
+    const viewMatrix = mat4.create();
+
+    mat4.translate(viewMatrix, viewMatrix, [0.0, 0.0, -10]);
+
+    // mat4.rotate(viewMatrix, viewMatrix,
+    //             cubeRotation * 0.5,
+    //             [0, 0, 1]);
+
+    // mat4.rotate(viewMatrix, viewMatrix, cubeRotation * .2, [0, 1, 0]);
+
+    return {projectionMatrix, viewMatrix}
+}
 
 function main() {
 
@@ -49,9 +69,11 @@ function main() {
 
     let myGeom = new CubeGeometry("aPosition", "aTextureCoord", "aNormal");
 
-    myGeom.interleaveAttributes();
+    // myGeom.interleaveAttributes();
+    myGeom.initBuffers(gl);
+    console.log(myGeom);
 
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 2000; i++) {
 
         let obj = new Mesh(myGeom);
 
@@ -80,17 +102,17 @@ function main() {
 
     rq = requestAnimationFrame(render);
 
-    window.stopRender = function(){
+    window.stopRender = function () {
         cancelAnimationFrame(rq);
         rq = null;
-    }
+    };
 
-    window.startRender = function(){
+    window.startRender = function () {
         rq = requestAnimationFrame(render);
-    }
+    };
 }
 
-function draw(gl, shader, objectArr, deltaTime) {
+function draw(gl, shader, objectArr, deltaTime, camera) {
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
@@ -129,8 +151,6 @@ function draw(gl, shader, objectArr, deltaTime) {
 
         if (object.needsModelUpdate === true) {
             object.updateModelMatrix();
-            // console.log(object.uniforms);
-            // console.log('updateing model matrix')
             object.needsModelUpdate = false;
         }
 
@@ -160,51 +180,90 @@ function draw(gl, shader, objectArr, deltaTime) {
 
         }
 
-        for (let key in object.geom.attributes) {
+        if (! (globalState.vertexBuffer === object.geom.buffers.mainBuffer)) {
+            console.log('should only run once')
+            gl.bindBuffer(ARRAY_BUFFER, object.geom.buffers.mainBuffer);
+            globalState.vertexBuffer = object.geom.buffers.mainBuffer;
 
-            if (!object.geom.attributes.hasOwnProperty(key)) continue;
+            for (let key in object.geom.attributes) {
 
-            //if is a index buffer
-            if (object.geom.attributes[key].index === true) {
+                if (!object.geom.attributes.hasOwnProperty(key)) continue;
 
-                if(! (globalState.indexBuffer === object.geom.buffers[key])){
-                    console.log('switching index buffer');
-                    gl.bindBuffer(ELEMENT_ARRAY_BUFFER, object.geom.buffers[key]);
-                    globalState.indexBuffer = object.geom.buffers[key];
+                //wont deal with that here.
+                if (object.geom.attributes[key].index === true) continue;
+
+                {
+                    const numComponents = object.geom.attributes[key].size;
+                    const type          = gl.FLOAT;
+                    const normalize     = false;
+                    const stride        = object.geom.attributeStride;
+                    const offset        = object.geom.attributes[key].offset;
+
+                    gl.vertexAttribPointer(
+                        shader.info.attr[key],
+                        numComponents,
+                        type,
+                        normalize,
+                        stride,
+                        offset
+                    );
+
+                    gl.enableVertexAttribArray(shader.info.attr[key]);
                 }
+                //if is a index buffer
+                // if (object.geom.attributes[key].index === true) {
+                //
+                //     if(! (globalState.indexBuffer === object.geom.buffers[key])){
+                //         console.log('switching index buffer');
+                //         gl.bindBuffer(ELEMENT_ARRAY_BUFFER, object.geom.buffers[key]);
+                //         globalState.indexBuffer = object.geom.buffers[key];
+                //     }
+                //
+                // }
+
+                // else {
+                //
+                //
+                //     const numComponents = object.geom.attributes[key].size;
+                //     const type          = gl.FLOAT;
+                //     const normalize     = false;
+                //     const stride        = 0;
+                //     const offset        = 0;
+                //
+                //     // console.log(object.buffers[key])
+                //
+                //     gl.bindBuffer(ARRAY_BUFFER, object.geom.buffers[key]);
+                //
+                //     gl.vertexAttribPointer(
+                //         shader.info.attr[key],
+                //         numComponents,
+                //         type,
+                //         normalize,
+                //         stride,
+                //         offset);
+                //
+                //     gl.enableVertexAttribArray(
+                //         shader.info.attr[key]);
+                // }
 
             }
 
-            else {
-
-
-                const numComponents = object.geom.attributes[key].size;
-                const type          = gl.FLOAT;
-                const normalize     = false;
-                const stride        = 0;
-                const offset        = 0;
-
-                // console.log(object.buffers[key])
-
-                gl.bindBuffer(ARRAY_BUFFER, object.geom.buffers[key]);
-
-                gl.vertexAttribPointer(
-                    shader.info.attr[key],
-                    numComponents,
-                    type,
-                    normalize,
-                    stride,
-                    offset);
-
-                gl.enableVertexAttribArray(
-                    shader.info.attr[key]);
+            if (object.geom.indexed === true) {
+                if (!(globalState.indexBuffer === object.geom.buffers.indexBuffer)) {
+                    console.log('switching index buffer');
+                    gl.bindBuffer(ELEMENT_ARRAY_BUFFER, object.geom.buffers.indexBuffer);
+                    globalState.indexBuffer = object.geom.buffers.indexBuffer;
+                }
             }
-
         }
 
-        if (!(gl.getParameter(gl.CURRENT_PROGRAM) === shader.program)) {
+
+        // if (!(gl.getParameter(gl.CURRENT_PROGRAM) === shader.program)) {
+        if(! (globalState.program === shader.program)){
             gl.useProgram(shader.program);
+            globalState.program = shader.program;
         }
+        // }
 
         const obj_uni    = object.uniforms;
         const shader_uni = shader.info.uni;
@@ -261,15 +320,14 @@ function draw(gl, shader, objectArr, deltaTime) {
         gl.uniformMatrix4fv(shader.info.uni['uNormalMatrix'].location, false, normalMatrix);
 
         if (object.geom.indexed === true) {
-
             {
                 const vertexCount = object.geom.attributes['indices'].data.length;
                 const type        = gl.UNSIGNED_SHORT;
                 const offset      = 0;
                 gl.drawElements(TRIANGLES, vertexCount, type, offset);
             }
-
         }
+
         else {
 
             gl.drawArrays(TRIANGLES, 0, object.geom.attributes['aPosition'].data.length);
