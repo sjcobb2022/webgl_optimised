@@ -7,7 +7,8 @@ import {CubeGeometry} from "./lib/Geometry.js";
 
 import {Mesh} from "./lib/Mesh.js";
 
-import Stats from "./stats/stats.module.js";
+import Stats    from "./stats/stats.module.js";
+import {Camera} from "./lib/Camera.js";
 
 let cubeRotation = 0.0;
 
@@ -19,30 +20,6 @@ let globalState = {
 
 
 main();
-
-
-function createCamera(){
-    const fieldOfView = 45 * Math.PI / 180;   // in radians
-    const aspect      = gl.canvas.clientWidth / gl.canvas.clientHeight;
-    const zNear       = 0.1;
-    const zFar        = 1000.0;
-
-    const projectionMatrix = mat4.create();
-
-    mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
-
-    const viewMatrix = mat4.create();
-
-    mat4.translate(viewMatrix, viewMatrix, [0.0, 0.0, -10]);
-
-    // mat4.rotate(viewMatrix, viewMatrix,
-    //             cubeRotation * 0.5,
-    //             [0, 0, 1]);
-
-    // mat4.rotate(viewMatrix, viewMatrix, cubeRotation * .2, [0, 1, 0]);
-
-    return {projectionMatrix, viewMatrix}
-}
 
 function main() {
 
@@ -65,13 +42,11 @@ function main() {
 
     const shader = new Shader(vs, fs, gl);
 
+    let myCam = new Camera(45 * Math.PI / 180, gl.canvas.clientWidth / gl.canvas.clientHeight, 0.1, 1000);
+
     let myObjArr = [];
 
     let myGeom = new CubeGeometry("aPosition", "aTextureCoord", "aNormal");
-
-    // myGeom.interleaveAttributes();
-    myGeom.initBuffers(gl);
-    console.log(myGeom);
 
     for (let i = 0; i < 2000; i++) {
 
@@ -86,16 +61,14 @@ function main() {
         myObjArr.push(obj);
     }
 
-    let then = 0;
     let rq;
 
-    function render(now) {
-        now *= 0.001;  // convert to seconds
-        const deltaTime = now - then;
-        then            = now;
+    function render() {
         stats.begin();
-        draw(gl, shader, myObjArr, deltaTime);
+        draw(gl, shader, myObjArr, myCam);
         stats.end();
+
+        myCam.rotateRad(0, 0.01, 0);
 
         rq = requestAnimationFrame(render);
     }
@@ -112,7 +85,7 @@ function main() {
     };
 }
 
-function draw(gl, shader, objectArr, deltaTime, camera) {
+function draw(gl, shader, objectArr, camera) {
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
@@ -121,24 +94,17 @@ function draw(gl, shader, objectArr, deltaTime, camera) {
 
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    const fieldOfView = 45 * Math.PI / 180;   // in radians
-    const aspect      = gl.canvas.clientWidth / gl.canvas.clientHeight;
-    const zNear       = 0.1;
-    const zFar        = 1000.0;
+    if(! (globalState.program === shader.program)){
+        console.log('shader program switch');
+        gl.useProgram(shader.program);
+        globalState.program = shader.program;
+    }
 
-    const projectionMatrix = mat4.create();
-
-    mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
-
-    const viewMatrix = mat4.create();
-
-    mat4.translate(viewMatrix, viewMatrix, [0.0, 0.0, -10]);
-
-    mat4.rotate(viewMatrix, viewMatrix,
-                cubeRotation * 0.5,
-                [0, 0, 1]);
-
-    mat4.rotate(viewMatrix, viewMatrix, cubeRotation * .2, [0, 1, 0]);
+    if(camera.needsModelUpdate){
+        camera.updateModelMatrix();
+        gl.uniformMatrix4fv(shader.info.uni['uProjectionMatrix'].location, false, camera.projection);
+        gl.uniformMatrix4fv(shader.info.uni['uViewMatrix'].location, false, camera.model);
+    }
 
     for (let i = 0; i < objectArr.length; i++) {
         const object = objectArr[i];
@@ -156,29 +122,29 @@ function draw(gl, shader, objectArr, deltaTime, camera) {
 
         //TODO add shader verification map maybe?   <-- not necessary rn but if slows down maybe
 
-        const object_attr_length = Object.keys(object.geom.attributes).length;
-
-        const comparison_obj = Object.assign({}, object.geom.attributes, shader.info.attr);
-
-        const comparison_obj_length = Object.keys(comparison_obj).length;
-
-        if (comparison_obj_length > object_attr_length) {
-
-            if (object.indexed === true) {
-
-                const initial_array = arr_diff(Object.keys(object.geom.attributes), Object.keys(shader.info.attr));
-
-                //only get undefined props
-                const final_array = initial_array.filter(x => object.geom.attributes[x] === undefined);
-
-                throw `Object does not have properties: ${final_array}`;
-
-            }
-            else {
-                throw `Object does not have properties: ${arr_diff(object.geom.attributes.keys(), shader.info.attr.keys())}`;
-            }
-
-        }
+        // const object_attr_length = Object.keys(object.geom.attributes).length;
+        //
+        // const comparison_obj = Object.assign({}, object.geom.attributes, shader.info.attr);
+        //
+        // const comparison_obj_length = Object.keys(comparison_obj).length;
+        //
+        // if (comparison_obj_length > object_attr_length) {
+        //
+        //     if (object.indexed === true) {
+        //
+        //         const initial_array = arr_diff(Object.keys(object.geom.attributes), Object.keys(shader.info.attr));
+        //
+        //        // only get undefined props
+        //         const final_array = initial_array.filter(x => object.geom.attributes[x] === undefined);
+        //
+        //         throw `Object does not have properties: ${final_array}`;
+        //
+        //     }
+        //     else {
+        //         throw `Object does not have properties: ${arr_diff(object.geom.attributes.keys(), shader.info.attr.keys())}`;
+        //     }
+        //
+        // }
 
         if (! (globalState.vertexBuffer === object.geom.buffers.mainBuffer)) {
             console.log('should only run once')
@@ -257,13 +223,11 @@ function draw(gl, shader, objectArr, deltaTime, camera) {
             }
         }
 
-
-        // if (!(gl.getParameter(gl.CURRENT_PROGRAM) === shader.program)) {
         if(! (globalState.program === shader.program)){
+            console.log('shader program switch');
             gl.useProgram(shader.program);
             globalState.program = shader.program;
         }
-        // }
 
         const obj_uni    = object.uniforms;
         const shader_uni = shader.info.uni;
@@ -273,21 +237,18 @@ function draw(gl, shader, objectArr, deltaTime, camera) {
             if (!obj_uni.hasOwnProperty(key)) continue;
 
             if (!shader_uni[key]) {
-                console.log(shader);
                 console.warn(`shader does not have uniform ${key}, will not apply`);
                 continue;
             }
 
-            if (shader_uni[key].data.length > obj_uni[key].length) {
-                throw new RangeError(`The uniform ${key} has data which is too short`);
-            }
+            // if (shader_uni[key].data.length > obj_uni[key].length) {
+            //     throw new RangeError(`The uniform ${key} has data which is too short`);
+            // }
 
             try {
                 shader_uni[key].data.set(obj_uni[key], 0);
             } catch {
-
                 throw new RangeError(`The uniform ${key} has a length that is too long`);
-
             }
 
             if (shader_uni[key].matrix === true) {
@@ -302,23 +263,7 @@ function draw(gl, shader, objectArr, deltaTime, camera) {
             }
         }
 
-        gl.uniformMatrix4fv(
-            shader.info.uni['uProjectionMatrix'].location,
-            false,
-            projectionMatrix);
-
-        gl.uniformMatrix4fv(
-            shader.info.uni['uViewMatrix'].location,
-            false,
-            viewMatrix);
-
-        const normalMatrix = mat4.create();
-
-        mat4.invert(normalMatrix, object.model);
-        mat4.transpose(normalMatrix, normalMatrix);
-
-        gl.uniformMatrix4fv(shader.info.uni['uNormalMatrix'].location, false, normalMatrix);
-
+        //actual draw
         if (object.geom.indexed === true) {
             {
                 const vertexCount = object.geom.attributes['indices'].data.length;
@@ -327,14 +272,11 @@ function draw(gl, shader, objectArr, deltaTime, camera) {
                 gl.drawElements(TRIANGLES, vertexCount, type, offset);
             }
         }
-
         else {
 
             gl.drawArrays(TRIANGLES, 0, object.geom.attributes['aPosition'].data.length);
 
         }
     }
-
-    cubeRotation += deltaTime;
 
 }
