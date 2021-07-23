@@ -13,7 +13,6 @@
 
 <script type="x-shader/x-vertex" id="vertShader">
   precision highp float;
-
   attribute vec4 aPosition;
   attribute vec2 aTextureCoord;
   attribute vec3 aNormal;
@@ -26,13 +25,14 @@
   varying vec2 vTextureCoord;
   varying vec3 vNormal; // same as v_normal
   varying vec3 vSurfaceToLight;
+  varying vec3 vPos;
 
   void main() {
 
     gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * aPosition;
     vTextureCoord = aTextureCoord;
 
-    vec3 lightWorldPosition = vec3(5.0, 5.0, 5.0);
+    vec3 lightWorldPosition = vec3(0.0, 3.0, 0.0);
 
     vec3 surfaceWorldPosition = (uModelMatrix * aPosition).xyz;
 
@@ -40,6 +40,7 @@
 
     vNormal = vec3(uNormalMatrix * vec4(aNormal, 1.0));
 
+    vPos = vec3(aPosition);
 
   }
 
@@ -50,7 +51,9 @@
   uniform lowp vec4 uColor;
 
   varying vec3 vNormal;
+  varying vec2 vTextureCoord;
   varying vec3 vSurfaceToLight;
+  varying vec3 vPos;
 
   void main() {
 
@@ -66,7 +69,33 @@
     vec3 ambient = vec3(0.2, 0.2, 0.2);
 
     gl_FragColor.rgb *= (min(ambient + light, 1.0));
+  }
+</script>
 
+
+<script type="x-shader/x-vertex" id="pointVert">
+  precision highp float;
+  attribute vec4 aPosition;
+  attribute vec3 aColor;
+
+  uniform mat4 uProjectionMatrix;
+  uniform mat4 uViewMatrix;
+  uniform mat4 uModelMatrix;
+
+  varying vec3 vColor;
+
+  void main(){
+    gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * aPosition;
+    gl_PointSize = 20.0;
+    vColor = aColor;
+  }
+</script>
+<script type="x-shader/x-fragment" id="pointFrag">
+  precision highp float;
+
+  varying vec3 vColor;
+  void main(){
+    gl_FragColor = vec4(vColor, 1.0);
   }
 </script>
 
